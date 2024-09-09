@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+
+{% block title %}Home - Remote Server Access{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12 text-center">
+        <h1>Welcome to Remote Server Access App</h1>
+        <p class="lead">This is a simple web-based SSH terminal application. You can connect to remote servers and manage them through your browser.</p>
+        <a href="{% url 'terminal' %}" class="btn btn-primary btn-lg">Go to SSH Terminal</a>
+    </div>
+</div>
+{% endblock %}

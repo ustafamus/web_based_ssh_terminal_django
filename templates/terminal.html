@@ -1,0 +1,182 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive SSH Terminal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css" />
+    <style>
+        body {
+            font-family: monospace;
+            background-color: #2b2b2b;
+            color: #f8f8f2;
+        }
+
+        #terminal-container {
+            width: 100%;
+            height: 500px;
+            background-color: black;
+            padding: 10px;
+            color: #00ff00;
+            overflow-y: auto;
+            border: 1px solid #666;
+            margin-top: 20px;
+        }
+
+        .command-line {
+            display: inline;
+        }
+
+        #command-input {
+            background-color: black;
+            color: #00ff00;
+            border: none;
+            outline: none;
+            width: 90%;
+            font-family: monospace;
+        }
+
+        #terminal-output pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            max-width: 300px;
+            margin-bottom: 20px;
+        }
+
+        form input {
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #666;
+            background-color: #333;
+            color: #fff;
+        }
+
+        form button {
+            padding: 10px;
+            border: none;
+            background-color: #00ff00;
+            color: black;
+            cursor: pointer;
+        }
+
+        form button:hover {
+            background-color: #0f0;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Interactive SSH Terminal</h1>
+
+    <!-- SSH Connection Form -->
+    <form id="ssh-form">
+            {% csrf_token %}
+        <input type="text" id="hostname" placeholder="Hostname" required>
+        <input type="text" id="username" placeholder="Username" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <button type="submit">Connect</button>
+    </form>
+
+    <!-- Terminal Container (Initially Hidden) -->
+    <div id="terminal-container" class="hidden">
+        <div id="terminal-output"></div>
+        <div class="command-line">
+            <span id="prompt">user@server:~$ </span>
+            <input type="text" id="command-input" autofocus />
+        </div>
+    </div>
+
+    <script>
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        const commandInput = document.getElementById("command-input");
+        const terminalOutput = document.getElementById("terminal-output");
+        const sshForm = document.getElementById("ssh-form");
+        const terminalContainer = document.getElementById("terminal-container");
+
+        // Handle SSH connection form submission
+        sshForm.addEventListener("submit", function(event) {
+            event.preventDefault();
+            const hostname = document.getElementById("hostname").value;
+            const username = document.getElementById("username").value;
+            const password = document.getElementById("password").value;
+
+            // Send connection details to server
+            fetch("{% url 'connect_ssh' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({ hostname, username, password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Hide the connection form and show terminal
+                    sshForm.style.display = "none";
+                    terminalContainer.classList.remove("hidden");
+
+                    // Display a success message in the terminal
+                    const connectionMessage = document.createElement("pre");
+                    connectionMessage.innerText = `Connected to ${hostname}\n`;
+                    terminalOutput.appendChild(connectionMessage);
+                } else {
+                    alert("Error: " + data.error);
+                }
+            });
+        });
+
+        // Handle terminal command input
+        commandInput.addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                const command = commandInput.value;
+                if (command.trim() === "") return;
+
+                // Display the command in the terminal
+                const commandLine = document.createElement("div");
+                commandLine.innerHTML = `<span id="prompt">user@server:~$ </span><pre>${command}</pre>`;
+                terminalOutput.appendChild(commandLine);
+                commandInput.value = "";
+
+                // Send the command to the server
+                fetch("{% url 'execute_command' %}", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": "{{ csrf_token }}"
+                    },
+                    body: JSON.stringify({ command })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    const output = document.createElement("pre");
+                    if (data.output) {
+                        output.innerText = data.output;
+                    } else if (data.error) {
+                        output.innerText = "Error: " + data.error;
+                    }
+                    terminalOutput.appendChild(output);
+                    terminalOutput.scrollTop = terminalOutput.scrollHeight;  // Scroll to the bottom
+                })
+                .catch(error => {
+                    const errorOutput = document.createElement("pre");
+                    errorOutput.innerText = "Error: " + error.message;
+                    terminalOutput.appendChild(errorOutput);
+                    terminalOutput.scrollTop = terminalOutput.scrollHeight;  // Scroll to the bottom
+                });
+            }
+        });
+    </script>
+</body>
+</html>
